@@ -1,0 +1,1983 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>レポート作成サイト</title>
+<!-- QRコード生成ライブラリ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<!-- Google Fonts -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=M+PLUS+Rounded+1c:wght@500;800&family=Noto+Sans+JP:wght@400;700&family=Noto+Serif+JP:wght@500;700&family=Yuji+Syuku&display=swap" rel="stylesheet">
+
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; display:flex; flex-direction:column; font-family:'Segoe UI', Meiryo, sans-serif; height:100vh; background:#0f172a; color:#f8fafc; overflow:hidden; position:relative; }
+
+  /* 上部ツールバー（Word風リボンUI） */
+  #tools { 
+    width:100%; 
+    background:#1e293b; 
+    color:#f8fafc; 
+    padding:4px 8px; 
+    border-bottom: 2px solid #334155;
+    box-shadow:0 2px 8px rgba(0,0,0,0.3); 
+    z-index:10; 
+    flex-shrink: 0;
+  }
+
+  .tools-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #334155;
+  }
+  .tools-title-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  /* 生徒情報ヘッダーインラインフォーム */
+  .student-info-inline {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    background: #334155;
+    padding: 2px 6px;
+    border-radius: 5px;
+    border: 1px solid #38bdf8;
+  }
+
+  /* 開閉トグルボタン */
+  #toolsToggleBtn {
+    width: auto !important;
+    padding: 3px 8px !important;
+    background: #3b82f6;
+    color: #fff;
+    border: 1px solid #60a5fa;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 11px;
+    margin: 0 !important;
+  }
+  #toolsToggleBtn:hover { background: #2563eb; }
+
+  /* 1段目に全項目を並べるコンテナ */
+  .tools-grid {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 6px;
+    align-items: flex-start;
+    overflow-x: auto;
+    padding-top: 4px;
+    padding-bottom: 2px;
+    transition: all 0.2s ease;
+  }
+  
+  /* 閉じ状態のときは項目グループのみ非表示 */
+  body.tools-closed .tools-grid {
+    display: none !important;
+  }
+
+  /* 説明書ボタン */
+  .btn-help {
+    background: #0284c7 !important;
+    color: #ffffff !important;
+    font-weight: bold;
+    border: 1px solid #38bdf8 !important;
+    padding: 3px 8px !important;
+    margin: 0 !important;
+    width: auto !important;
+    font-size: 11px !important;
+  }
+  .btn-help:hover { background: #0369a1 !important; }
+
+  /* UIグループ（アコーディオン） */
+  .ui-group { 
+    background:#334155; 
+    border:1px solid #475569; 
+    border-radius:5px; 
+    flex: 0 0 auto;
+    overflow: hidden;
+  }
+  .ui-group h3 { 
+    margin:0; 
+    font-size:11px; 
+    color:#38bdf8; 
+    padding:4px 8px; 
+    cursor:pointer;
+    display:flex;
+    gap: 6px;
+    align-items:center;
+    user-select:none;
+    background:#2d3748;
+    white-space: nowrap;
+    transition: background 0.2s;
+  }
+  .ui-group h3:hover { background:#3b4a61; }
+  .ui-group h3::after { content: '▲'; font-size: 8px; transition: transform 0.2s; }
+  .ui-group.collapsed h3::after { transform: rotate(180deg); }
+  
+  /* 横並びコンテンツ */
+  .ui-group-content { 
+    padding:5px 6px; 
+    border-top:1px solid #475569; 
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    max-width: 360px;
+  }
+  .ui-group.collapsed .ui-group-content { display: none; }
+  
+  .flex-row { display:flex; align-items:center; gap:4px; }
+  button, input, select { width:auto; padding:3px 6px; margin:0; border-radius:4px; border:1px solid #475569; background:#0f172a; color:#fff; font-size:11px; cursor:pointer; transition:0.2s; white-space: nowrap; }
+  button:hover:not(:disabled) { background:#3b82f6; border-color:#60a5fa; }
+  button.active { background:#2563eb; font-weight:bold; }
+  
+  /* ボタン無効化スタイル */
+  button:disabled, select:disabled, input:disabled {
+    opacity: 0.4 !important;
+    cursor: not-allowed !important;
+    background: #1e293b !important;
+    border-color: #334155 !important;
+  }
+
+  label { font-size:11px; color:#cbd5e1; display:inline-block; margin:0 1px; }
+
+  /* 生徒情報未入力のアラート注意書き */
+  #infoNotice {
+    background: #f59e0b;
+    color: #000;
+    font-size: 11px;
+    font-weight: bold;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin: 0;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  /* ワークエリア */
+  #work { flex:1; background:#0f172a; padding:10px; overflow:auto; display:flex; justify-content:center; align-items:flex-start; touch-action:auto; }
+  
+  /* ピンチ拡大用のラッパー */
+  #zoomWrapper { transform-origin: top center; transition: transform 0.05s ease-out; }
+
+  /* キャンバス */
+  #canvas { position:relative; width:794px; height:1123px; background:#ffffff; margin:auto; border-radius:8px; box-shadow:0 10px 25px rgba(0,0,0,0.5); overflow:hidden; }
+  
+  /* 固定表示ヘッダー */
+  #fixedHeader {
+    position: absolute;
+    top: 20px;
+    right: 25px;
+    font-size: 20px;
+    font-weight: bold;
+    color: #000000;
+    font-family: Meiryo, sans-serif;
+    user-select: none;
+    pointer-events: none;
+    z-index: 1000;
+    text-align: right;
+    line-height: 1.2;
+  }
+
+  /* キャンバス要素 */
+  .item {
+    position:absolute;
+    border-style:none;
+    user-select:none;
+    cursor:move;
+    color:#000000;
+    background:transparent;
+    transform-origin: center center;
+    min-width:20px;
+    min-height:20px;
+    box-sizing:border-box;
+    padding: 6px;
+  }
+  .item.selected { outline:1px dashed #2563eb !important; outline-offset: 2px; }
+  
+  /* テキストエリア */
+  .item [contenteditable="true"] {
+    outline:none;
+    width:100%;
+    height:100%;
+    min-height:100%;
+    word-break:break-word;
+    overflow:hidden;
+    line-height:1.2;
+    background:transparent !important;
+    padding: 2px;
+    box-sizing: border-box;
+    user-select: text !important;
+    -webkit-user-select: text !important;
+    cursor: text !important;
+  }
+  
+  .item img { width:100%; height:100%; object-fit:contain; pointer-events:none; -webkit-user-drag: none; display:block; }
+  .item svg { width:100%; height:100%; display:block; pointer-events:none; }
+
+  /* アイコンフォント指定 */
+  .icon-card, .item.icon-item, .icon-content {
+    font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", "Segoe UI Symbol", sans-serif !important;
+    line-height: 1 !important;
+    white-space: nowrap;
+  }
+  .item.icon-item { display:flex !important; align-items:center !important; justify-content:center !important; line-height:1; overflow:visible !important; }
+  .item.icon-item .icon-content { display:flex !important; align-items:center !important; justify-content:center !important; width:100%; height:100%; line-height:1; font-style:normal; }
+
+  .vertical-text { writing-mode: vertical-rl; text-orientation: upright; }
+
+  /* ハンドル仕様（Chromebookタッチ操作向けにヒットエリア最適化） */
+  .rotate-handle {
+    display:none; position:absolute; right:-14px; top:-14px; width:28px; height:28px;
+    background:#38bdf8; color:#000; border:2px solid #fff; border-radius:50%;
+    font-size:13px; text-align:center; line-height:24px; cursor:grab; z-index:100; font-weight:bold; touch-action:none;
+    box-shadow:0 2px 6px rgba(0,0,0,0.3);
+  }
+
+  .resize-handle {
+    display:none; position:absolute; right:-14px; bottom:-14px; width:28px; height:28px;
+    background:#2563eb; color:#ffffff; border:2px solid #fff; border-radius:50%;
+    font-size:16px; font-weight:bold; text-align:center; line-height:24px; cursor:se-resize; z-index:100; touch-action:none;
+    user-select:none; box-shadow:0 2px 6px rgba(0,0,0,0.3);
+  }
+  .resize-handle::after { content: '＋'; }
+
+  .move-handle {
+    display:none; position:absolute; right:-14px; top:50%; transform:translateY(-50%); width:26px; height:26px;
+    background:#38bdf8; color:#000000; border:2px solid #fff; border-radius:6px;
+    font-size:13px; font-weight:bold; text-align:center; line-height:22px; cursor:move; z-index:99; touch-action:none;
+    user-select:none; opacity: 0.95; box-shadow:0 2px 6px rgba(0,0,0,0.3);
+  }
+  .move-handle::after { content: '□'; }
+
+  .item.selected .resize-handle, 
+  .item.selected .move-handle, 
+  .item.selected .rotate-handle { display:block; }
+  
+  /* モーダル */
+  .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); backdrop-filter:blur(3px); z-index:1000; }
+  .panel { background:#1e293b; color:#fff; width:800px; height:620px; margin:20px auto; padding:20px; border-radius:12px; border:1px solid #475569; display:flex; flex-direction:column; }
+  .tab-menu { display:flex; gap:6px; border-bottom:1px solid #475569; padding-bottom:8px; margin-bottom:12px; flex-wrap:wrap; }
+  .tab-btn { background:#334155; border:none; padding:6px 10px; border-radius:6px; color:#fff; cursor:pointer; width:auto; font-size:12px; }
+  .tab-btn.active { background:#3b82f6; }
+  .icon-grid { display:grid; grid-template-columns:repeat(auto-fill, minmax(48px, 1fr)); gap:8px; overflow-y:auto; flex:1; padding:4px; }
+  .icon-card { display:flex; align-items:center; justify-content:center; font-size:24px; background:#334155; border-radius:8px; height:48px; cursor:pointer; transition:0.2s; border:1px solid transparent; }
+  .icon-card:hover { background:#475569; border-color:#38bdf8; transform:scale(1.1); }
+  
+  .code-container { flex:1; display:flex; flex-direction:column; gap:10px; overflow:hidden; }
+  .code-block { flex:1; background:#0f172a; color:#38bdf8; border:1px solid #475569; border-radius:6px; padding:12px; font-family:monospace; font-size:12px; overflow:auto; white-space:pre-wrap; word-break:break-all; }
+
+  .btn-code-view {
+    background: linear-gradient(135deg, #10b981, #059669) !important;
+    color: #ffffff !important;
+    font-weight: bold !important;
+    font-size: 12px !important;
+    padding: 6px 12px !important;
+    border: none !important;
+    box-shadow: 0 2px 8px rgba(16, 185, 129, 0.3) !important;
+    width: 100% !important;
+    margin: 0 !important;
+  }
+
+  /* ポインター追従追加ガイド */
+  #placementGuide {
+    position: fixed;
+    pointer-events: none;
+    z-index: 20000;
+    padding: 5px 10px;
+    background: rgba(14, 165, 233, 0.95);
+    color: #ffffff;
+    border: 2px dashed #ffffff;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: bold;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+    display: none;
+    transform: translate(12px, 12px);
+    white-space: nowrap;
+  }
+
+  /* 右クリック（コンテキスト）メニュー */
+  .context-menu {
+    position: fixed;
+    z-index: 10000;
+    width: 170px;
+    background: #1e293b;
+    border: 1px solid #475569;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    padding: 4px 0;
+    font-size: 12px;
+    color: #f8fafc;
+    user-select: none;
+  }
+  .context-menu-item {
+    padding: 7px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: background 0.15s;
+  }
+  .context-menu-item:hover { background: #3b82f6; color: #ffffff; }
+  .context-menu-item.danger:hover { background: #ef4444; }
+  .context-menu-item .shortcut { font-size: 10px; color: #94a3b8; }
+  .context-menu-item:hover .shortcut { color: #e2e8f0; }
+  .context-menu-divider { height: 1px; background: #334155; margin: 4px 0; }
+
+  /* 印刷用スタイル（PDF出力最適化） */
+  @media print {
+    @page { margin: 0; size: A4 portrait; }
+    html, body {
+      margin: 0 !important;
+      padding: 0 !important;
+      background: #ffffff !important;
+      width: 100% !important;
+      height: 100% !important;
+      overflow: visible !important;
+    }
+    #tools, .modal, .context-menu, #placementGuide { display: none !important; }
+    #work {
+      padding: 0 !important;
+      margin: 0 !important;
+      background: none !important;
+      display: block !important;
+      overflow: visible !important;
+    }
+    #zoomWrapper {
+      transform: none !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    #canvas {
+      position: absolute !important;
+      left: 0 !important;
+      top: 0 !important;
+      margin: 0 !important;
+      box-shadow: none !important;
+      border-radius: 0 !important;
+      page-break-inside: avoid;
+      break-inside: avoid;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    .resize-handle, .move-handle, .rotate-handle { display: none !important; }
+    .item.selected { outline: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ポインター追従ガイド -->
+<div id="placementGuide">📍 ここに追加</div>
+
+<!-- 上部ツールバー -->
+<div id="tools">
+  <div class="tools-header">
+    <div class="tools-title-group">
+      <h2 style="font-size:14px; margin:0; color:#38bdf8; white-space:nowrap;">レポート作成</h2>
+
+      <!-- 生徒情報インラインフォーム -->
+      <div class="student-info-inline">
+        <span style="font-size:11px; font-weight:bold; color:#38bdf8; white-space:nowrap;">👤生徒情報:</span>
+        <input type="number" id="studentGrade" min="1" max="9" placeholder="年" style="width:36px; padding:2px 3px; font-size:11px; text-align:center;" oninput="onStudentInfoChange()" title="学年">
+        <span style="font-size:11px; color:#cbd5e1;">年</span>
+        <input type="number" id="studentClassNum" min="1" max="20" placeholder="組" style="width:36px; padding:2px 3px; font-size:11px; text-align:center;" oninput="onStudentInfoChange()" title="組">
+        <span style="font-size:11px; color:#cbd5e1;">組</span>
+        <input type="number" id="studentNumber" min="1" max="50" placeholder="番" style="width:40px; padding:2px 3px; font-size:11px; text-align:center;" oninput="onStudentInfoChange()" title="番号">
+        <span style="font-size:11px; color:#cbd5e1;">番</span>
+        <input type="text" id="studentName" placeholder="氏名" style="width:75px; padding:2px 4px; font-size:11px;" oninput="onStudentInfoChange()" title="氏名">
+      </div>
+
+      <button class="btn-help" onclick="showHelpModal()">📖 使い方説明書</button>
+      <button onclick="showSamplePdfModal()" style="background:#8b5cf6 !important; border:1px solid #a78bfa !important; font-weight:bold; color:#ffffff; padding:3px 8px; margin:0; font-size:11px;">📄 見本(B゜)PDF</button>
+      <button id="toolsToggleBtn" onclick="toggleTools()">▲ ツールを閉じる</button>
+      <button class="req-info" onclick="undo()">↶ 戻る</button>
+      <button class="req-info" onclick="redo()">↷ 進む</button>
+      <button class="req-info" onclick="pdfOut()" style="background:#e11d48; font-weight:bold;">📄 PDF保存</button>
+      <button class="req-info" onclick="clearAllCanvas()" style="background:#dc2626; font-weight:bold;">🗑️ 全部削除</button>
+      <button class="req-info" onclick="showOtherSaveModal()" style="background:#475569; font-weight:bold;">📁 その他</button>
+    </div>
+    <!-- 生徒情報未入力時の注意メッセージ -->
+    <div id="infoNotice">⚠️ 学年・組・番号・氏名を入力すると操作できます</div>
+  </div>
+
+  <div class="tools-grid">
+    <!-- 1. パーツ追加 -->
+    <div class="ui-group collapsed">
+      <h3 onclick="toggleAccordion(this)">パーツ追加</h3>
+      <div class="ui-group-content">
+        <button class="req-info" onclick="requestAddItem('title')">タイトル</button>
+        <button class="req-info" onclick="requestAddItem('text')">文章(横)</button>
+        <button class="req-info" onclick="requestAddItem('textV')">文章(縦)</button>
+        <button class="req-info" onclick="requestAddItem('box')">四角形</button>
+        <button class="req-info" onclick="requestAddItem('circle')">円</button>
+        <button class="req-info" onclick="requestAddItem('line')">線 (直線)</button>
+        <button class="req-info" onclick="showIcons()">アイコン</button>
+        <button class="req-info" onclick="requestAddItem('qr')">QRコード</button>
+        <input type="file" id="imageFileInput" accept="image/*" onchange="loadLocalImage(event)" style="display:none;">
+        <button class="req-info" onclick="document.getElementById('imageFileInput').click()" style="background:#059669; font-weight:bold;">📁 画像を選択</button>
+        <button class="req-info" onclick="pasteImageFromClipboard()" style="background:#10b981; font-weight:bold;">📋 画像貼付け</button>
+        <button class="req-info" onclick="openGoogleImageSearch()" style="background:#0284c7; font-weight:bold;">🔍 画像検索</button>
+        <button class="req-info" onclick="showImageHowToModal()" style="background:#6366f1; font-weight:bold;">🖼️ 貼り方手順</button>
+      </div>
+    </div>
+
+    <!-- 2. スタイル＆書式 -->
+    <div class="ui-group collapsed">
+      <h3 onclick="toggleAccordion(this)">スタイル & 書式</h3>
+      <div class="ui-group-content">
+        <label>フォント</label>
+        <select id="fontSelect" class="req-info" onchange="applyStyle()" style="width:130px;">
+          <option value="'Noto Sans JP', 'Hiragino Kaku Gothic ProN', sans-serif">角ゴシック体</option>
+          <option value="'M PLUS Rounded 1c', 'Kosugi Maru', sans-serif">丸ゴシック体</option>
+          <option value="'Noto Serif JP', 'Yu Mincho', serif">明朝体</option>
+          <option value="'Yuji Syuku', serif">毛筆・筆文字風</option>
+          <option value="'Comic Sans MS', cursive, sans-serif">POP・ポップ体</option>
+          <option value="monospace">等幅 (Monospace)</option>
+        </select>
+        
+        <label>サイズ</label>
+        <input id="fs" class="req-info" type="number" min="8" value="48" style="width:50px;" onchange="applyStyle()" oninput="applyStyle()">
+        
+        <button id="boldBtn" class="req-info" onmousedown="event.preventDefault()" onclick="toggleBold()"><b>B 太字</b></button>
+        <button class="req-info" onmousedown="event.preventDefault()" onclick="toggleDecoration('underline')"><u>下線</u></button>
+        <button class="req-info" onmousedown="event.preventDefault()" onclick="toggleDecoration('double')"><u>＝ 二重線</u></button>
+        <button class="req-info" onmousedown="event.preventDefault()" onclick="toggleDecoration('wavy')">波線</button>
+        
+        <button class="req-info" onclick="alignT('left')">左揃え</button>
+        <button class="req-info" onclick="alignT('center')">中央</button>
+        <button class="req-info" onclick="alignT('right')">右揃え</button>
+
+        <label>文字色</label>
+        <input id="tc" class="req-info" type="color" value="#000000" style="width:28px; padding:0; height:22px;" onchange="applyStyle()">
+
+        <label>枠線</label>
+        <select id="borderStyleSelect" class="req-info" onchange="onBorderStyleChange()" style="width:85px;">
+          <option value="none">なし</option>
+          <option value="solid">一重線</option>
+          <option value="double">二重線</option>
+          <option value="dashed">破線</option>
+          <option value="dotted">点線</option>
+          <option value="groove">凹線</option>
+          <option value="ridge">凸線</option>
+        </select>
+
+        <label>太さ</label>
+        <input id="borderWidthInput" class="req-info" type="number" min="1" max="50" value="4" style="width:45px;" onchange="applyStyle()" oninput="applyStyle()">
+        
+        <label>枠色</label>
+        <input id="bc" class="req-info" type="color" value="#000000" style="width:28px; padding:0; height:22px;" onchange="onBorderColorChange()">
+        <button class="req-info" onclick="setBorderTransparent()" style="padding:2px 5px; font-size:10px;">枠透明</button>
+
+        <label>背景色</label>
+        <input id="bg" class="req-info" type="color" value="#ffffff" style="width:28px; padding:0; height:22px;" onchange="onBgColorChange()">
+        <button class="req-info" onclick="setBgTransparent()" style="padding:2px 5px; font-size:10px;">背景透明</button>
+      </div>
+    </div>
+
+    <!-- 3. 配置＆編集 -->
+    <div class="ui-group collapsed">
+      <h3 onclick="toggleAccordion(this)">配置 & 編集</h3>
+      <div class="ui-group-content">
+        <button class="req-info" onclick="front()">前面へ</button>
+        <button class="req-info" onclick="back()">背面へ</button>
+        <button class="req-info" onclick="copyE()">複製</button>
+        <button class="req-info" onclick="delE()" style="background:#ef4444;">削除</button>
+      </div>
+    </div>
+
+    <!-- 4. 要素の大きさ -->
+    <div class="ui-group collapsed">
+      <h3 onclick="toggleAccordion(this)">要素の大きさ</h3>
+      <div class="ui-group-content">
+        <label>幅</label>
+        <input id="elemWidth" class="req-info" type="number" min="1" style="width:60px;" onchange="applySize()" oninput="applySize()" placeholder="自動">
+        <label>高さ</label>
+        <input id="elemHeight" class="req-info" type="number" min="1" style="width:60px;" onchange="applySize()" oninput="applySize()" placeholder="自動">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ワークエリア -->
+<div id="work">
+  <div id="zoomWrapper">
+    <div id="canvas">
+      <div id="fixedHeader"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 使い方説明書モーダル -->
+<div id="helpModal" class="modal">
+  <div class="panel" style="max-width:700px; height:auto; max-height:88vh; overflow-y:auto;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #475569; padding-bottom:8px;">
+      <h3 style="margin:0; color:#38bdf8; font-size:16px;">📖 レポート作成サイトの使い方完全ガイド</h3>
+      <button onclick="hideHelpModal()" style="width:auto; padding:4px 12px; background:#475569;">✕ 閉じる</button>
+    </div>
+    
+    <div style="font-size:13px; line-height:1.7; color:#e2e8f0;">
+      <div style="background:#334155; padding:10px; border-radius:6px; border-left:4px solid #38bdf8; margin-bottom:12px;">
+        📌 <strong>はじめに（最初に設定すること）</strong><br>
+        画面左上の「<b>👤生徒情報</b>」に<b>【学年・組・番号・氏名】</b>を入力してください。入力が完了すると、自動的にすべてのツールが使えるようになり、紙の右上にお名前が印字されます。
+      </div>
+
+      <h4 style="color:#38bdf8; margin:12px 0 6px 0; border-bottom:1px solid #475569; padding-bottom:4px;">1. パーツの追加と配置</h4>
+      <ul style="margin:0; padding-left:20px;">
+        <li><b>パーツの狙い撃ち配置</b>：パーツ追加ボタンや画像読み込みを行うと、マウスポインターに「<b>📍 ここに追加</b>」バッジが追従します。紙の好きな場所をクリック・タップするとその場所に配置されます！</li>
+        <li><b>画像を選ぶ・貼る</b>：Chromebookやパソコン内の画像を追加する場合は「<b>📁 画像を選択</b>」を押します。ウェブ上の画像をコピーした場合は「<b>📋 画像貼付け</b>」またはキーボードの [ Ctrl ] + [ V ] で直接貼ることができます。</li>
+      </ul>
+
+      <h4 style="color:#38bdf8; margin:14px 0 6px 0; border-bottom:1px solid #475569; padding-bottom:4px;">2. 文字の編集・一部だけ大きくする・波線をつける</h4>
+      <ul style="margin:0; padding-left:20px;">
+        <li><b>文章の一部だけサイズ変更</b>：文章中の<b>【変更したい文字だけを指やマウスで選択（ハイライト）】</b>した状態で、「スタイル＆書式」の<b>【サイズ】</b>の数字を変更すると、選択した文字だけを大きく/小さくできます！</li>
+        <li><b>波線・二重線・下線・太字</b>：文字を選択して「<b>波線</b>」「<b>＝ 二重線</b>」「<b>下線</b>」「<b>B 太字</b>」を押すと、選択箇所だけに装飾を付けられます。もう一度押すと消せます。</li>
+        <li><b>文字色・フォント変更</b>：角ゴシック・丸ゴシック・明朝体・毛筆風などに一括・部分変更できます。</li>
+      </ul>
+
+      <h4 style="color:#38bdf8; margin:14px 0 6px 0; border-bottom:1px solid #475569; padding-bottom:4px;">3. 右クリックメニュー & キーボードショートカット</h4>
+      <ul style="margin:0; padding-left:20px;">
+        <li><b>右クリック操作</b>：パーツや紙の上で右クリック（タッチパネル長押し）すると、<b>コピー・切り取り・貼り付け・複製・前面/背面移動・削除</b>の便利メニューが表示されます。</li>
+        <li><b>[ Ctrl ] + [ C ] / [ X ] / [ V ]</b>：パーツのコピー・切り取り・貼り付けを行えます。</li>
+        <li><b>[ Ctrl ] + [ D ]</b>：選択中のパーツを複製（重ねて増やす）します。</li>
+        <li><b>[ Ctrl ] + [ Z ] / [ Y ]</b>：直前の操作を元に戻す・進める。</li>
+        <li><b>[ Delete ] キー</b>：選択中のパーツを削除します（文字入力中を除く）。</li>
+      </ul>
+
+      <h4 style="color:#38bdf8; margin:14px 0 6px 0; border-bottom:1px solid #475569; padding-bottom:4px;">4. 見本(B゜)PDFと復元機能</h4>
+      <ul style="margin:0; padding-left:20px;">
+        <li><b>📄 見本(B゜)PDF</b>：プロレベルのレポート構成を画面上で確認し、そのままPDF出力やキャンバスへの復元が可能です。</li>
+      </ul>
+
+      <h4 style="color:#38bdf8; margin:14px 0 6px 0; border-bottom:1px solid #475569; padding-bottom:4px;">5. 保存と提出（PDFの作り方）</h4>
+      <ul style="margin:0; padding-left:20px;">
+        <li><b>📄 PDF保存（提出用）</b>：完成したら「📄 PDF保存」を押します。印刷画面が開くので、送信先を「<b>PDFとして保存</b>」にして保存してください。</li>
+        <li><b>📁 その他</b>：作業途中のデータをパソコンに保存したいときは「その他」メニューの「名前を付けて保存 (.hpb)」をご利用ください。次回「ファイルから読み込み」で続きから編集できます。</li>
+      </ul>
+    </div>
+
+    <div style="margin-top:15px; text-align:right; border-top:1px solid #475569; padding-top:8px; font-size:11px; color:#94a3b8;">
+      © t-suzuki
+    </div>
+  </div>
+</div>
+
+<!-- 見本(B゜)PDFモーダル -->
+<div id="samplePdfModal" class="modal">
+  <div class="panel" style="width:840px; height:85vh; max-height:850px;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid #475569; padding-bottom:8px;">
+      <h3 style="margin:0; color:#a78bfa;">📄 見本(B゜) タイピングを早めるコツ レポート完成見本</h3>
+      <div style="display:flex; gap:8px;">
+        <button onclick="restoreSampleData(); hideSamplePdfModal();" style="background:#d97706; font-weight:bold; padding:4px 12px;">🔄 この見本データをキャンバスに復元</button>
+        <button onclick="printSamplePdf()" style="background:#e11d48; font-weight:bold; padding:4px 12px;">🖨️ 見本PDFを印刷・保存</button>
+        <button onclick="hideSamplePdfModal()" style="width:auto; padding:4px 12px; background:#475569;">✕ 閉じる</button>
+      </div>
+    </div>
+    <div style="flex:1; overflow:auto; background:#334155; padding:15px; display:flex; justify-content:center; border-radius:8px;">
+      <!-- A4見本レンダリング -->
+      <div id="sampleCanvasView" style="position:relative; width:794px; height:1123px; background:#ffffff; box-shadow:0 8px 20px rgba(0,0,0,0.4); color:#000; transform-origin:top center; transform:scale(0.65); border-radius:4px; overflow:hidden;">
+        <div style="position:absolute; top:20px; right:25px; font-size:18px; font-weight:bold; font-family:Meiryo, sans-serif; text-align:right;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 画像の貼り方案内モーダル -->
+<div id="imageHowToModal" class="modal">
+  <div class="panel" style="max-width:580px; height:auto;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #475569; padding-bottom:8px;">
+      <h3 style="margin:0; color:#10b981;">🖼️ 画像の貼り方手順</h3>
+      <button onclick="hideImageHowToModal()" style="width:auto; padding:4px 12px;">✕ 閉じる</button>
+    </div>
+    <div style="font-size:14px; line-height:1.8; color:#f8fafc;">
+      <p style="margin-top:0; background:#334155; padding:8px; border-radius:6px; font-size:13px;">
+        💡 <b>おすすめ</b>：「<b>📁 画像ファイルを選択</b>」ボタンでパソコンやChromebookにある画像を選ぶのが一番簡単・確実に貼り付けできます。
+      </p>
+      <ol style="padding-left:20px; margin:10px 0 0 0;">
+        <li style="margin-bottom:10px;">
+          <strong>Google画像検索などで画像をコピーした場合：</strong><br>
+          画像上で右クリック（または長押し）して「<b>画像をコピー</b>」を選択。<br>
+          この画面に戻り、キーボードの <b>[ Ctrl ] + [ V ]</b> を押すか、「<b>📋 画像貼付け</b>」ボタンを押します。
+        </li>
+        <li style="margin-bottom:10px;">
+          <strong>画像ファイルをお持ちの場合：</strong><br>
+          「<b>📁 画像ファイルを選択</b>」ボタンを押し、写真や画像を選ぶだけで紙の上に配置されます。
+        </li>
+      </ol>
+      <div style="margin-top:12px; background:#451a03; color:#fde68a; border:1px solid #f59e0b; padding:10px 12px; border-radius:6px; font-size:12px; line-height:1.6;">
+        ※画像はgoogle画像の規制の関係できちんと反映＆保存されない可能性があります。もし反映＆保存がされていなかった場合はもう一度貼り直しましょう。
+      </div>
+    </div>
+    <div style="margin-top:15px; text-align:right;">
+      <button onclick="hideImageHowToModal()" style="width:auto; padding:8px 20px; background:#3b82f6;">分かりました</button>
+    </div>
+  </div>
+</div>
+
+<!-- その他の保存方法・機能モーダル -->
+<div id="otherSaveModal" class="modal">
+  <div class="panel" style="max-width:500px; height:auto;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #475569; padding-bottom:8px;">
+      <h3 style="margin:0; color:#38bdf8;">📁 その他の機能 & 保存・書き出し</h3>
+      <button onclick="hideOtherSaveModal()" style="width:auto; padding:4px 12px;">✕ 閉じる</button>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:12px; padding:10px 0;">
+      <div>
+        <label style="margin-bottom:4px; font-weight:bold;">プログラミング確認</label>
+        <button class="btn-code-view req-info" onclick="hideOtherSaveModal(); showCodeModal();">💻 プログラム(HTML/CSS)を表示</button>
+      </div>
+      <div style="border-top:1px solid #475569; padding-top:10px;">
+        <label style="margin-bottom:4px; font-weight:bold;">クラウド保管</label>
+        <button onclick="openGoogleDrive()" style="background:#2563eb; font-weight:bold; width:100%;">☁️ Googleドライブを開く（保管用）</button>
+      </div>
+      <div style="border-top:1px solid #475569; padding-top:10px;">
+        <label style="margin-bottom:4px; font-weight:bold;">プロジェクトファイル (.hpb)</label>
+        <button onclick="saveToFile(); hideOtherSaveModal();" style="width:100%;">名前を付けて保存</button>
+        <input type="file" id="loadFileInput" onchange="loadFromFile(event); hideOtherSaveModal();" accept=".hpb,.html,.txt" style="display:none;">
+        <button onclick="document.getElementById('loadFileInput').click()" style="margin-top:4px; width:100%;">ファイルから読み込み</button>
+      </div>
+      <div style="border-top:1px solid #475569; padding-top:10px;">
+        <label style="margin-bottom:4px; font-weight:bold;">Webページ用書き出し</label>
+        <button onclick="downloadHTML(); hideOtherSaveModal();" style="background:#10b981; font-weight:bold; width:100%;">📄 HTMLファイルダウンロード</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- アイコン選択モーダル -->
+<div id="iconModal" class="modal">
+  <div class="panel">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h3 style="margin:0;">アイコンライブラリ</h3>
+      <button onclick="hideIcons()" style="width:auto; padding:4px 12px;">✕ 閉じる</button>
+    </div>
+    <div class="tab-menu">
+      <button class="tab-btn active" onclick="filterIcons('all', this)">すべて</button>
+      <button class="tab-btn" onclick="filterIcons('basic', this)">基本・UI</button>
+      <button class="tab-btn" onclick="filterIcons('web', this)">WEB・通信</button>
+      <button class="tab-btn" onclick="filterIcons('biz', this)">ビジネス</button>
+      <button class="tab-btn" onclick="filterIcons('nature', this)">自然・フード</button>
+      <button class="tab-btn" onclick="filterIcons('vehicle', this)">乗り物・建物</button>
+      <button class="tab-btn" onclick="filterIcons('symbol', this)">記号・矢印</button>
+      <button class="tab-btn" onclick="filterIcons('face', this)">人物・感情</button>
+      <button class="tab-btn" onclick="filterIcons('sport', this)">スポーツ・趣味</button>
+    </div>
+    <div id="iconArea" class="icon-grid"></div>
+  </div>
+</div>
+
+<!-- プログラミング表示モーダル -->
+<div id="codeModal" class="modal">
+  <div class="panel">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+      <h3 style="margin:0; color:#10b981;">💻 作成したページのプログラム（HTML/CSS）</h3>
+      <button onclick="hideCodeModal()" style="width:auto; padding:4px 12px;">✕ 閉じる</button>
+    </div>
+    <p style="font-size:12px; color:#cbd5e1; margin:0 0 10px 0;">
+      現在キャンバスで組み立てたパーツの位置や文字、デザインがどのような「プログラム（HTML/CSS）」として生成されているかを確認できます。
+    </p>
+    <div class="code-container">
+      <div id="codeViewArea" class="code-block"></div>
+    </div>
+    <div style="margin-top:10px; display:flex; gap:10px;">
+      <button onclick="copyCodeToClipboard()" style="background:#10b981;">📋 コードをコピー</button>
+      <button onclick="downloadHTML()" style="background:#3b82f6;">💾 HTMLファイルとして保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- カスタムコンテキストメニュー -->
+<div id="contextMenu" class="context-menu" style="display:none;">
+  <div class="context-menu-item" onclick="contextCopy()"><span style="display:flex;align-items:center;gap:6px;">📋 コピー</span><span class="shortcut">Ctrl+C</span></div>
+  <div class="context-menu-item" onclick="contextCut()"><span style="display:flex;align-items:center;gap:6px;">✂️ 切り取り</span><span class="shortcut">Ctrl+X</span></div>
+  <div class="context-menu-item" id="contextPasteItem" onclick="contextPaste()"><span style="display:flex;align-items:center;gap:6px;">📥 貼り付け</span><span class="shortcut">Ctrl+V</span></div>
+  <div class="context-menu-item" onclick="contextDuplicate()"><span style="display:flex;align-items:center;gap:6px;">📑 複製</span><span class="shortcut">Ctrl+D</span></div>
+  <div class="context-menu-divider"></div>
+  <div class="context-menu-item" onclick="contextFront()"><span style="display:flex;align-items:center;gap:6px;">⬆️ 前面へ</span></div>
+  <div class="context-menu-item" onclick="contextBack()"><span style="display:flex;align-items:center;gap:6px;">⬇️ 背面へ</span></div>
+  <div class="context-menu-divider"></div>
+  <div class="context-menu-item danger" onclick="contextDelete()"><span style="display:flex;align-items:center;gap:6px;">🗑️ 削除</span><span class="shortcut">Delete</span></div>
+</div>
+
+<script>
+const c = document.getElementById('canvas');
+const zoomWrapper = document.getElementById('zoomWrapper');
+const workArea = document.getElementById('work');
+
+const tc = document.getElementById('tc');
+const bc = document.getElementById('bc');
+const bg = document.getElementById('bg');
+const fs = document.getElementById('fs');
+const fontSelect = document.getElementById('fontSelect');
+const borderStyleSelect = document.getElementById('borderStyleSelect');
+const borderWidthInput = document.getElementById('borderWidthInput');
+const elemWidth = document.getElementById('elemWidth');
+const elemHeight = document.getElementById('elemHeight');
+
+let selectedItem = null;
+let history = [];
+let historyIndex = -1;
+let isTransparentBorder = false;
+let isTransparentBg = true;
+
+let currentScale = 1.0;
+let savedRange = null; // 選択テキストの保持領域
+let internalClipboard = null; // パーツ用クリップボード
+let contextMenuPos = { x: 100, y: 100 }; // 右クリック時のキャンバス座標
+
+let pendingAddItemType = null;
+let pendingAddData = null;
+const placementGuide = document.getElementById('placementGuide');
+
+/* 見本（タイピングを早めるコツについて） PDF添付完全対応 HTMLデータ */
+const SAMPLE_HTML_DATA = `
+  <div class="item" style="left: 10px; top: 70px; width: 770px; height: 80px; background-color: rgb(250, 255, 209); border-style: double; border-width: 6px; border-color: rgb(231, 13, 13); font-family: 'Noto Sans JP', sans-serif; font-size: 38px; color: rgb(0, 0, 0);"><div contenteditable="true" style="font-size: 38px; font-weight: bold; text-align: center; color: rgb(0, 0, 0);">タイピングを早めるコツについて💻</div><div class="resize-handle" title="ドラッグで拡大・縮小"></div><div class="move-handle" title="ドラッグで移動"></div><div class="rotate-handle" title="ドラッグで回転">↻</div></div>
+  <div class="item" style="left: 45px; top: 159px; width: 324px; height: 39px; font-family: 'Noto Sans JP', sans-serif; font-size: 21px; color: rgb(247, 8, 227); font-weight: bold;"><div contenteditable="true" style="font-size: 21px; color: rgb(247, 8, 227); font-weight: bold;">タイピングとは？</div><div class="resize-handle" title="ドラッグで拡大・縮小"></div><div class="move-handle" title="ドラッグで移動"></div><div class="rotate-handle" title="ドラッグで回転">↻</div></div>
+  <div class="item icon-item" style="left: 15px; top: 160px; width: 32px; height: 34px; font-size: 32px;"><div class="icon-content" style="font-size: 32px;">✨</div><div class="resize-handle" title="ドラッグで拡大・縮小"></div><div class="move-handle" title="ドラッグで移動"></div><div class="rotate-handle" title="ドラッグで回転">↻</div></div>
+  <div class="item" style="left: 52px; top: 204px; width: 718px; height: 60px;"><div contenteditable="true" style="font-size:16px;"> タイピングとは、パソコンやタイプライターなどのキーボード（入力装置）を操作して、文字や数字を入力すること、またはその技術のことです。「打鍵（だけん）」とも呼ばれます。</div><div class="resize-handle" title="ドラッグで拡大・縮小"></div><div class="move-handle" title="ドラッグで移動"></div><div class="rotate-handle" title="ドラッグで回転">↻</div></div>
+  <div class="item icon-item" style="left: 17px; top: 272px; width: 32px; height: 34px; font-size: 32px;"><div class="icon-content" style="font-size: 32px;">✨</div><div class="resize-handle" title="ドラッグで拡大・縮小"></div><div class="move-handle" title="ドラッグで移動"></div><div class="rotate-handle" title="ドラッグで回転">↻</div></div>
+  <div class="item" style="left: 43px; top: 271px; width: 589px; height: 45px; font-family: 'Noto Sans JP', sans-serif; font-size: 21px; color: rgb(247, 8, 227); font-weight: bold;"><div contenteditable="true" style="font-size: 21px; color: rgb(247, 8, 227); font-weight: bold;">タイピングの基本：タッチタイピング（ブラインドタッチ）</div><div class="resize-handle" title="ドラッグで拡大・縮小"></div><div class="move-handle" title="ドラッグで移動"></div><div class="rotate-handle" title="ドラッグで回転">↻</div></div>
+  <div class="item" style="left: 50px; top: 315px; width: 718px; height: 60px;"><div contenteditable="true" style="font-size:16px;"> キーボードを見ずに、画面や原稿だけを見て文字を入力する方法を<b>タッチタイピング</b>（またはブラインドタッチ）と呼びます。</div><div class="resize-handle" title="ドラッグで拡大・縮小"></div><div class="move-handle" title="ドラッグで移動"></div><div class="rotate-handle" title="ドラッグで回転">↻</div></div>
+  <div class="item" style="left: 51px; top: 377px; width: 589px; height: 45px; font-family: 'Noto Sans JP', sans-serif; font-size: 21px; color: rgb(237, 12, 12); font-weight: bold;"><div contenteditable="true" style="font-size: 21px; color: rgb(237, 12, 12); font-weight: bold;">タイピングを上達させるコツ✌('ω'✌ )</div><div class="resize-handle" title="ドラッグで拡大・縮小"></div><div class="move-handle" title="ドラッグで移動"></div><div class="rotate-handle" title="ドラッグで回転">↻</div></div>
+  <div class="item icon-item" style="left: 13px; top: 361px; width: 47px; height: 61px; font-size: 47px;"><div class="icon-content" style="font-size: 47px;">👍</div><div class="resize-handle" title="ドラッグで拡大・縮小"></div><div class="move-handle" title="ドラッグで移動"></div><div class="rotate-handle" title="ドラッグで回転">↻</div></div>
+  <div class="item" style="left: 29px; top: 419px; width: 729px; height: 167px;"><div contenteditable="true" style="font-size:16px;"><ul style="margin: 12px 0;"><li><b>手元を見ない癖をつける：</b>最初は遅くても、キーボードを見ずに画面を見て打つ練習を続けましょう</li><li><b>動かしにくい指を慣らす：</b>薬指や小指は普段使い慣れていないため、意識して動かす運動を取り入れろと効果的です</li><li><b>タイピング練習サイトを活用する：</b>ブラウザ上でゲーム感覚・無料で遊べる練習用サイトを日課として使うのが一般的です</li></ul></div><div class="resize-handle" title="ドラッグで拡大・縮小"></div><div class="move-handle" title="ドラッグで移動"></div><div class="rotate-handle" title="ドラッグで回転">↻</div></div>
+  <div class="item icon-item" style="left: 640px; top: 230px; width: 80px; height: 80px; font-size: 60px;"><div class="icon-content" style="font-size:60px;">⌨️</div><div class="resize-handle" title="ドラッグで拡大・縮小"></div><div class="move-handle" title="ドラッグで移動"></div><div class="rotate-handle" title="ドラッグで回転">↻</div></div>
+  <div class="item" style="left: 51px; top: 569px; width: 589px; height: 45px; font-family: 'Noto Sans JP', sans-serif; font-size: 21px; color: rgb(42, 30, 210); font-weight: bold;"><div contenteditable="true" style="font-size: 21px; color: rgb(42, 30, 210); font-weight: bold;">タイピングをするときの良くない癖😢</div><div class="resize-handle" title="ドラッグで拡大・縮小"></div><div class="move-handle" title="ドラッグで移動"></div><div class="rotate-handle" title="ドラッグで回転">↻</div></div>
+  <div class="item icon-item" style="left: 10px; top: 570px; width: 49px; height: 45px; font-size: 45px;"><div class="icon-content" style="font-size: 45px;">👎</div><div class="resize-handle" title="ドラッグで拡大・縮小"></div><div class="move-handle" title="ドラッグで移動"></div><div class="rotate-handle" title="ドラッグで回転">↻</div></div>
+  <div class="item" style="left: 29px; top: 622px; width: 729px; height: 167px;"><div contenteditable="true" style="font-size:16px;"><ul style="margin: 12px 0;"><li><b>指を限定しすぎる：</b>人差し指や中指など数本の指だけで打っている（左右の指が遊んでいる）</li><li><b>手元（キーボード）を頻繁に見る：</b>打つたびに視線を下げるため、フォームや感覚がズレてミスが増える</li><li><b>ホームポジションを無視する：</b>打鍵後に指が元の位置（JとFなど）に戻らず、キーの位置を見失う</li><li><b>打鍵音がうるさい・強打する：</b>EnterキーやBackspaceキーなどを「ッターン！」と強く叩く</li><li><b>姿勢が悪い：</b>キーを探すために顔や前傾が深くなり、疲れや速度低下を招く</li></ul></div><div class="resize-handle" title="ドラッグで拡大・縮小"></div><div class="move-handle" title="ドラッグで移動"></div><div class="rotate-handle" title="ドラッグで回転">↻</div></div>
+  <div class="item" style="left: 35px; top: 800px; width: 510px; height: 159px; font-size: 18px;"><div contenteditable="true" style="font-size: 18px;"><b style="color:#0ff03c;">世界一タイピングが速い人！？</b><br><br>オンラインタイピング練習サイトの「Monkeytype」における世界記録では、17歳の「MythicalRocket（Rocket）」という少年が15秒間部門で分速305語（WPM）を達成し、世界最速のタイピング記録を持つ人物として知られています。</div><div class="resize-handle" title="ドラッグで拡大・縮小"></div><div class="move-handle" title="ドラッグで移動"></div><div class="rotate-handle" title="ドラッグで回転">↻</div></div>
+  <div class="item icon-item" style="left: 300px; top: 791px; width: 45px; height: 50px; font-size: 45px;"><div class="icon-content" style="font-size: 45px;">😬</div><div class="resize-handle" title="ドラッグで拡大・縮小"></div><div class="move-handle" title="ドラッグで移動"></div><div class="rotate-handle" title="ドラッグで回転">↻</div></div>
+  <div class="item" style="left: 32px; top: 947px; width: 528px; height: 172px; font-size: 18px;"><div contenteditable="true" style="font-size: 18px;"><b style="color:#781c1c;">★おすすめタイピングサイト</b><br><b>https://y05248266-create.github.io/taipinngusaito/</b><br>技術の先生が作ったタイピングサイト。テスト勉強にも活用できるサイトです。<br><br><b>https://sushida.net/play.html?soundless</b><br>寿司打。お題のお寿司が流れてきて、それを打っていく。</div><div class="resize-handle" title="ドラッグで拡大・縮小"></div><div class="move-handle" title="ドラッグで移動"></div><div class="rotate-handle" title="ドラッグで回転">↻</div></div>
+  <div class="item icon-item" style="left: 546px; top: 842px; width: 240px; height: 220px; font-size: 220px;"><div class="icon-content" style="font-size: 220px;">🖥️</div><div class="resize-handle" title="ドラッグで拡大・縮小"></div><div class="move-handle" title="ドラッグで移動"></div><div class="rotate-handle" title="ドラッグで回転">↻</div></div>
+`;
+
+// テキスト選択範囲を保持・記録するリスナー
+function saveSelection() {
+  const sel = window.getSelection();
+  if (sel && sel.rangeCount > 0 && sel.toString().length > 0) {
+    const range = sel.getRangeAt(0);
+    if (selectedItem && selectedItem.contains(range.commonAncestorContainer)) {
+      savedRange = range.cloneRange();
+    }
+  }
+}
+document.addEventListener('selectionchange', saveSelection);
+document.addEventListener('mouseup', saveSelection);
+document.addEventListener('touchend', saveSelection);
+
+function restoreSavedRange() {
+  if (savedRange) {
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(savedRange);
+    return sel;
+  }
+  return window.getSelection();
+}
+
+function toggleAccordion(header) {
+  const group = header.parentElement;
+  group.classList.toggle('collapsed');
+}
+
+function toggleTools() {
+  const body = document.body;
+  const btn = document.getElementById('toolsToggleBtn');
+  body.classList.toggle('tools-closed');
+  
+  if (body.classList.contains('tools-closed')) {
+    btn.innerText = '▼ ツールを開く';
+  } else {
+    btn.innerText = '▲ ツールを閉じる';
+  }
+}
+
+function showHelpModal() { document.getElementById('helpModal').style.display = 'block'; }
+function hideHelpModal() { document.getElementById('helpModal').style.display = 'none'; }
+
+function showSamplePdfModal() {
+  const sampleView = document.getElementById('sampleCanvasView');
+  sampleView.innerHTML = '<div style="position:absolute; top:20px; right:25px; font-size:18px; font-weight:bold; font-family:Meiryo, sans-serif; text-align:right;"></div>' + SAMPLE_HTML_DATA;
+  document.getElementById('samplePdfModal').style.display = 'block';
+}
+function hideSamplePdfModal() { document.getElementById('samplePdfModal').style.display = 'none'; }
+
+function printSamplePdf() {
+  restoreSampleData();
+  hideSamplePdfModal();
+  setTimeout(() => { pdfOut(); }, 300);
+}
+
+function restoreSampleData() {
+  if (confirm('キャンバスに見本データを復元しますか？現在の編集内容は上書きされます。')) {
+    deselectAll();
+    c.innerHTML = '<div id="fixedHeader"></div>' + SAMPLE_HTML_DATA;
+    rebindItems();
+    updateFixedHeader();
+    saveState();
+  }
+}
+
+function showImageHowToModal() { document.getElementById('imageHowToModal').style.display = 'block'; }
+function hideImageHowToModal() { document.getElementById('imageHowToModal').style.display = 'none'; }
+
+function showOtherSaveModal() { document.getElementById('otherSaveModal').style.display = 'block'; }
+function hideOtherSaveModal() { document.getElementById('otherSaveModal').style.display = 'none'; }
+
+function openGoogleImageSearch() { window.open('https://www.google.co.jp/imghp', '_blank'); }
+function openGoogleDrive() { window.open('https://drive.google.com/', '_blank'); }
+
+function onStudentInfoChange() {
+  updateFixedHeader();
+  checkStudentInfoInputs();
+}
+
+function checkStudentInfoInputs() {
+  const g = document.getElementById('studentGrade').value.trim();
+  const cNum = document.getElementById('studentClassNum').value.trim();
+  const num = document.getElementById('studentNumber').value.trim();
+  const name = document.getElementById('studentName').value.trim();
+
+  const isComplete = (g !== '' && cNum !== '' && num !== '' && name !== '');
+  const reqElements = document.querySelectorAll('.req-info');
+  const notice = document.getElementById('infoNotice');
+
+  reqElements.forEach(el => { el.disabled = !isComplete; });
+
+  if (isComplete) {
+    notice.style.display = 'none';
+  } else {
+    notice.style.display = 'block';
+  }
+}
+
+/* アイコン（絵文字）ライブラリデータ - 文字崩れ修正済み */
+const rawIcons = {
+  basic: [
+    '⭐','🌟','✨','❤️','💖','💕','💔','👍','👎','👏','✅','❌','⭕','❓','❗','🔔','📌','📍','🔍','🔒','🔓','🔑','⚙️','💡','📷','⏰','⌛','📅','📁','📄','📝','🗑️','✏️','✂️','🎨','🚩','🏷️','🛡️','⚡','💬','💭'
+  ],
+  web: [
+    '📞','📧','✉️','📮','🌐','💻','🖥️','📱','🎙️','🎧','📻','📺','🔋','🔌','📡','⌨️','🖱️','💾','💿','☁️','🖨️','🎥','📽️','📹','📶','🌍','🌎','🌏'
+  ],
+  biz: [
+    '💼','📊','📈','📉','💰','💴','💵','💳','💎','⚖️','🏢','🏪','🏭','🛒','👜','🏷️','🎯','🏆','🥇','🥈','🥉','📜','📋','🗓️','✒️','📐','🤝','👨‍💼','👩‍💼','📦'
+  ],
+  nature: [
+    '☀️','🌙','⭐','⛅','☁️','🌧️','❄️','⚡','🔥','💧','🌊','🌸','🌹','🌻','🍁','🍃','🌴','🍎','🍓','🍌','🍕','🍔','🍟','☕','🍵','🍺','🍰','🍩','🍦','🍉','🍇','🍊','🍱','🍜','🍣'
+  ],
+  vehicle: [
+    '🚗','🚕','🚌','🚚','🚑','🚒','🚲','🏍️','✈️','🚀','🚁','🚢','🏠','🏫','🏥','🗼','⛩️','🏰','🎪','⛺','🎡','🎢','⛵','🚜','🚏','⛽','🚦','🚨'
+  ],
+  symbol: [
+    '🔴','🔵','🟡','🟢','🟣','🟠','⬛','⬜','🔷','🔺','🔻','➔','➡️','⬅️','⬆️','⬇️','🔄','➕','➖','✖️','🚫','⚠️','💯','🔞','🏧','♿','🚹','🚺','🚮','🚰','♾️','✴️','❇️'
+  ],
+  face: [
+    '😀','😃','😄','😁','😆','😅','😂','😊','😇','🙂','😉','😌','😍','🥰','😘','😋','😜','😝','🤑','🤗','🤔','🤐','😏','😒','🙄','😬','😔','😴','😷','🤒','🤕','🤯','🤠','🥳','😎','🤓','🧐','😟','😮','😳','😲','😈'
+  ],
+  sport: [
+    '⚽','⚾','🏀','🏐','🏈','🎾','🎳','🏸','🥊','🥋','⛳','⛸️','🎣','🎿','🎯','🎱','🎮','🎲','♟️','🎨','🎬','🎤','🎧','🎵','🎷','🎸','🎹','🎺','🎻','🥁','🏓','🏊','🚴','🏋️','🧗'
+  ]
+};
+
+function showIcons() {
+  renderIcons('all');
+  document.getElementById('iconModal').style.display = 'block';
+}
+
+function hideIcons() {
+  document.getElementById('iconModal').style.display = 'none';
+}
+
+function filterIcons(category, btn) {
+  document.querySelectorAll('#iconModal .tab-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderIcons(category);
+}
+
+function renderIcons(category) {
+  const grid = document.getElementById('iconArea');
+  grid.innerHTML = '';
+  let list = [];
+  if (category === 'all') {
+    Object.values(rawIcons).forEach(arr => list.push(...arr));
+  } else if (rawIcons[category]) {
+    list = rawIcons[category];
+  }
+  
+  list.forEach(emoji => {
+    const card = document.createElement('div');
+    card.className = 'icon-card';
+    card.innerText = emoji;
+card.onclick = (e) => {
+      e.stopPropagation();
+      requestAddItem('icon', emoji);
+      hideIcons();
+    };
+    grid.appendChild(card);
+  });
+}
+
+/* --- ポインター追従＆狙い撃ち追加制御 --- */
+function requestAddItem(type, data = null) {
+  pendingAddItemType = type;
+  pendingAddData = data;
+  placementGuide.style.display = 'block';
+}
+
+function cancelPendingPlacement() {
+  pendingAddItemType = null;
+  pendingAddData = null;
+  placementGuide.style.display = 'none';
+}
+
+document.addEventListener('mousemove', (e) => {
+  if (pendingAddItemType) {
+    placementGuide.style.left = (e.clientX + 10) + 'px';
+    placementGuide.style.top = (e.clientY + 10) + 'px';
+  }
+});
+
+document.addEventListener('touchmove', (e) => {
+  if (pendingAddItemType && e.touches.length > 0) {
+    placementGuide.style.left = (e.touches[0].clientX + 10) + 'px';
+    placementGuide.style.top = (e.touches[0].clientY + 10) + 'px';
+  }
+});
+
+function executeAddItemAt(type, data, x, y) {
+  if (type === 'title') addTitle(x, y);
+  else if (type === 'text') addText(x, y);
+  else if (type === 'textV') addTextV(x, y);
+  else if (type === 'box') addBox(x, y);
+  else if (type === 'circle') addCircle(x, y);
+  else if (type === 'line') addLine(x, y);
+  else if (type === 'qr') addQR(x, y);
+  else if (type === 'image' && data) {
+    createItem(`<img src="${data}">`, x, y, 250, 250, false, 'transparent', 'none', '0px', 'transparent');
+  }
+  else if (type === 'icon' && data) {
+    createItem(`<div class="icon-content" style="font-size:60px;">${data}</div>`, x, y, 80, 80, true, 'transparent', 'none', '0px', 'transparent');
+  }
+}
+
+/* コンテキストメニュー制御 */
+function hideContextMenu() {
+  const cm = document.getElementById('contextMenu');
+  if (cm) cm.style.display = 'none';
+}
+
+document.addEventListener('click', (e) => {
+  hideContextMenu();
+  if (pendingAddItemType && !e.target.closest('#canvas') && !e.target.closest('#tools')) {
+    cancelPendingPlacement();
+  }
+});
+document.addEventListener('touchstart', (e) => {
+  if (!e.target.closest('#contextMenu')) hideContextMenu();
+});
+
+c.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  const item = e.target.closest('.item');
+  if (item) {
+    selectItem(item);
+  }
+  
+  const cm = document.getElementById('contextMenu');
+  if (!cm) return;
+
+  const rect = c.getBoundingClientRect();
+  contextMenuPos.x = Math.round((e.clientX - rect.left) / currentScale);
+  contextMenuPos.y = Math.round((e.clientY - rect.top) / currentScale);
+
+  const pasteBtn = document.getElementById('contextPasteItem');
+  if (pasteBtn) {
+    if (!internalClipboard) {
+      pasteBtn.style.opacity = '0.4';
+      pasteBtn.style.pointerEvents = 'none';
+    } else {
+      pasteBtn.style.opacity = '1';
+      pasteBtn.style.pointerEvents = 'auto';
+    }
+  }
+
+  let left = e.clientX;
+  let top = e.clientY;
+  if (left + 170 > window.innerWidth) left = window.innerWidth - 175;
+  if (top + 250 > window.innerHeight) top = window.innerHeight - 255;
+
+  cm.style.left = left + 'px';
+  cm.style.top = top + 'px';
+  cm.style.display = 'block';
+});
+
+function contextCopy() { copySelectedItem(); hideContextMenu(); }
+function contextCut() { cutSelectedItem(); hideContextMenu(); }
+function contextPaste() { pasteInternalClipboard(contextMenuPos.x, contextMenuPos.y); hideContextMenu(); }
+function contextDuplicate() { copyE(); hideContextMenu(); }
+function contextFront() { front(); hideContextMenu(); }
+function contextBack() { back(); hideContextMenu(); }
+function contextDelete() { delE(); hideContextMenu(); }
+
+function copySelectedItem() {
+  if (!selectedItem) return false;
+  let clone = selectedItem.cloneNode(true);
+  clone.querySelectorAll('.resize-handle, .move-handle, .rotate-handle').forEach(h => h.remove());
+  clone.classList.remove('selected');
+  internalClipboard = {
+    html: clone.innerHTML,
+    isIcon: selectedItem.classList.contains('icon-item'),
+    style: {
+      width: selectedItem.style.width,
+      height: selectedItem.style.height,
+      backgroundColor: selectedItem.style.backgroundColor,
+      borderStyle: selectedItem.style.borderStyle,
+      borderWidth: selectedItem.style.borderWidth,
+      borderColor: selectedItem.style.borderColor,
+      fontSize: selectedItem.style.fontSize,
+      fontFamily: selectedItem.style.fontFamily,
+      color: selectedItem.style.color,
+      textAlign: selectedItem.style.textAlign,
+      transform: selectedItem.style.transform,
+      borderRadius: selectedItem.style.borderRadius
+    }
+  };
+  return true;
+}
+
+function cutSelectedItem() {
+  if (!selectedItem) return;
+  copySelectedItem();
+  delE();
+}
+
+function pasteInternalClipboard(x, y) {
+  if (!internalClipboard) return;
+  
+  let targetLeft = (x !== undefined && x !== null) ? x : (selectedItem ? parseInt(selectedItem.style.left) + 20 : 120);
+  let targetTop = (y !== undefined && y !== null) ? y : (selectedItem ? parseInt(selectedItem.style.top) + 20 : 120);
+  
+  const newItem = createItem(
+    internalClipboard.html,
+    targetLeft,
+    targetTop,
+    parseInt(internalClipboard.style.width) || 150,
+    parseInt(internalClipboard.style.height) || 100,
+    internalClipboard.isIcon,
+    internalClipboard.style.backgroundColor,
+    internalClipboard.style.borderStyle,
+    internalClipboard.style.borderWidth,
+    internalClipboard.style.borderColor
+  );
+  
+  if (internalClipboard.style.fontSize) newItem.style.fontSize = internalClipboard.style.fontSize;
+  if (internalClipboard.style.fontFamily) newItem.style.fontFamily = internalClipboard.style.fontFamily;
+  if (internalClipboard.style.color) newItem.style.color = internalClipboard.style.color;
+  if (internalClipboard.style.textAlign) newItem.style.textAlign = internalClipboard.style.textAlign;
+  if (internalClipboard.style.transform) newItem.style.transform = internalClipboard.style.transform;
+  if (internalClipboard.style.borderRadius) newItem.style.borderRadius = internalClipboard.style.borderRadius;
+  
+  selectItem(newItem);
+  saveState();
+}
+
+/* キーボードショートカット処理 */
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    cancelPendingPlacement();
+  }
+
+  const active = document.activeElement;
+  const isInputTarget = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
+
+  if (isInputTarget) return;
+
+  // Deleteキー
+  if (e.key === 'Delete' && selectedItem) {
+    if (active && active.isContentEditable && window.getSelection().toString().length > 0) return;
+    e.preventDefault();
+    delE();
+    return;
+  }
+
+  // Ctrl/Cmd キー組み合わせ
+  if (e.ctrlKey || e.metaKey) {
+    const key = e.key.toLowerCase();
+    
+    // Undo (Ctrl+Z)
+    if (key === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      undo();
+      return;
+    }
+    
+    // Redo (Ctrl+Y or Ctrl+Shift+Z)
+    if (key === 'y' || (key === 'z' && e.shiftKey)) {
+      e.preventDefault();
+      redo();
+      return;
+    }
+
+    // Duplicate (Ctrl+D)
+    if (key === 'd') {
+      if (selectedItem) {
+        e.preventDefault();
+        copyE();
+      }
+      return;
+    }
+
+    // Copy (Ctrl+C)
+    if (key === 'c') {
+      const selText = window.getSelection().toString();
+      if (!selText && selectedItem) {
+        e.preventDefault();
+        copySelectedItem();
+      }
+      return;
+    }
+
+    // Cut (Ctrl+X)
+    if (key === 'x') {
+      const selText = window.getSelection().toString();
+      if (!selText && selectedItem) {
+        e.preventDefault();
+        cutSelectedItem();
+      }
+      return;
+    }
+
+    // Paste (Ctrl+V)
+    if (key === 'v') {
+      if (internalClipboard) {
+        e.preventDefault();
+        pasteInternalClipboard();
+      }
+      return;
+    }
+  }
+});
+
+/* 画像貼り付け処理 */
+document.addEventListener('paste', (e) => {
+  const active = document.activeElement;
+  if (active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA')) return;
+  
+  const clipboardData = e.clipboardData || (e.originalEvent && e.originalEvent.clipboardData);
+  if (!clipboardData || !clipboardData.items) return;
+  
+  for (let item of clipboardData.items) {
+    if (item.type.indexOf('image') !== -1) {
+      const blob = item.getAsFile();
+      if (!blob) continue;
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        requestAddItem('image', event.target.result);
+      };
+      reader.readAsDataURL(blob);
+      e.preventDefault();
+      return;
+    }
+  }
+});
+
+function loadLocalImage(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    requestAddItem('image', ev.target.result);
+    e.target.value = '';
+  };
+  reader.readAsDataURL(file);
+}
+
+async function pasteImageFromClipboard() {
+  try {
+    const clipboardItems = await navigator.clipboard.read();
+    for (const item of clipboardItems) {
+      for (const type of item.types) {
+        if (type.startsWith('image/')) {
+          const blob = await item.getType(type);
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            requestAddItem('image', e.target.result);
+          };
+          reader.readAsDataURL(blob);
+          return;
+        }
+      }
+    }
+    alert('クリップボードに画像が見つかりませんでした。\n「📁 画像を選択」でお試しください。');
+  } catch (err) {
+    alert('画像ファイルを「📁 画像を選択」ボタンで読み込むか、キーボードの [ Ctrl ] + [ V ] キーを押して貼り付けてください。');
+  }
+}
+
+function updateFixedHeader() {
+  const g = document.getElementById('studentGrade').value.trim();
+  const cNum = document.getElementById('studentClassNum').value.trim();
+  const num = document.getElementById('studentNumber').value.trim();
+  const name = document.getElementById('studentName').value.trim();
+  
+  let headerEl = document.getElementById('fixedHeader');
+  if (!headerEl) {
+    headerEl = document.createElement('div');
+    headerEl.id = 'fixedHeader';
+    c.appendChild(headerEl);
+  }
+  
+  let parts = [];
+  if (g) parts.push(`${g}年`);
+  if (cNum) parts.push(`${cNum}組`);
+  if (num) parts.push(`${num}番`);
+  if (name) parts.push(name);
+  
+  headerEl.innerText = parts.join(' ');
+  saveToLocalStorage();
+}
+
+function getExportFilename(defaultName, extension) {
+  const g = document.getElementById('studentGrade').value.trim();
+  const cNum = document.getElementById('studentClassNum').value.trim();
+  const num = document.getElementById('studentNumber').value.trim();
+  const name = document.getElementById('studentName').value.trim();
+  
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const dateStr = `${yyyy}${mm}${dd}`;
+  
+  let prefix = [];
+  if (g || cNum || num) prefix.push(`${g || 0}-${cNum || 0}-${num || 0}`);
+  if (name) prefix.push(name);
+  prefix.push(dateStr);
+  
+  return `${prefix.join('_')}_${defaultName}.${extension}`;
+}
+
+function saveState() {
+  if (historyIndex < history.length - 1) history = history.slice(0, historyIndex + 1);
+  history.push({
+    html: c.innerHTML,
+    w: c.style.width,
+    h: c.style.height
+  });
+  historyIndex++;
+  saveToLocalStorage();
+}
+
+function saveToLocalStorage() {
+  try {
+    const data = {
+      html: c.innerHTML,
+      studentGrade: document.getElementById('studentGrade').value,
+      studentClassNum: document.getElementById('studentClassNum').value,
+      studentNumber: document.getElementById('studentNumber').value,
+      studentName: document.getElementById('studentName').value
+    };
+    localStorage.setItem('report_app_saved_data', JSON.stringify(data));
+  } catch (e) {}
+}
+
+function loadFromLocalStorage() {
+  try {
+    const saved = localStorage.getItem('report_app_saved_data');
+    if (saved) {
+      const data = JSON.parse(saved);
+      if (data.html && data.html.trim().length > 0) {
+        c.innerHTML = data.html;
+        if (data.studentGrade !== undefined) document.getElementById('studentGrade').value = data.studentGrade;
+        if (data.studentClassNum !== undefined) document.getElementById('studentClassNum').value = data.studentClassNum;
+        if (data.studentNumber !== undefined) document.getElementById('studentNumber').value = data.studentNumber;
+        if (data.studentName !== undefined) document.getElementById('studentName').value = data.studentName;
+        rebindItems();
+        updateFixedHeader();
+        return true;
+      }
+    }
+  } catch (e) {}
+  return false;
+}
+
+function undo() {
+  if (historyIndex > 0) {
+    historyIndex--;
+    const state = history[historyIndex];
+    c.innerHTML = typeof state === 'string' ? state : state.html;
+    if (state.w) c.style.width = state.w;
+    if (state.h) c.style.height = state.h;
+    deselectAll();
+    rebindItems();
+    updateFixedHeader();
+    saveToLocalStorage();
+  }
+}
+
+function redo() {
+  if (historyIndex < history.length - 1) {
+    historyIndex++;
+    const state = history[historyIndex];
+    c.innerHTML = typeof state === 'string' ? state : state.html;
+    if (state.w) c.style.width = state.w;
+    if (state.h) c.style.height = state.h;
+    deselectAll();
+    rebindItems();
+    updateFixedHeader();
+    saveToLocalStorage();
+  }
+}
+
+function deselectAll() {
+  document.querySelectorAll('.item').forEach(el => el.classList.remove('selected'));
+  selectedItem = null;
+  savedRange = null;
+  elemWidth.value = '';
+  elemHeight.value = '';
+}
+
+function clearAllCanvas() {
+  if (confirm('右上の「生徒情報」以外のすべてのパーツを削除し、リセットしますか？')) {
+    const items = c.querySelectorAll('.item');
+    items.forEach(item => item.remove());
+    deselectAll();
+    saveState();
+  }
+}
+
+c.addEventListener('click', (e) => {
+  if (pendingAddItemType) {
+    const rect = c.getBoundingClientRect();
+    const x = Math.max(10, Math.round((e.clientX - rect.left) / currentScale - 50));
+    const y = Math.max(10, Math.round((e.clientY - rect.top) / currentScale - 20));
+
+    executeAddItemAt(pendingAddItemType, pendingAddData, x, y);
+    cancelPendingPlacement();
+    e.stopPropagation();
+    return;
+  }
+
+  if (e.target === c) deselectAll();
+});
+
+function createItem(contentHTML, left=100, top=100, width=200, height=100, isIcon=false, initialBg='transparent', borderStyle='none', borderWidth='4px', borderColor='#000000') {
+  const item = document.createElement('div');
+  item.className = 'item' + (isIcon ? ' icon-item' : '');
+  item.style.left = left + 'px';
+  item.style.top = top + 'px';
+  if(width) item.style.width = width + 'px';
+  if(height) item.style.height = height + 'px';
+  
+  item.style.backgroundColor = initialBg;
+  item.style.borderStyle = borderStyle;
+  item.style.borderWidth = borderWidth;
+  item.style.borderColor = borderColor;
+  
+  item.innerHTML = contentHTML + `
+    <div class="resize-handle" title="ドラッグで拡大・縮小"></div>
+    <div class="move-handle" title="ドラッグで移動"></div>
+    <div class="rotate-handle" title="ドラッグで回転">↻</div>
+  `;
+
+  c.appendChild(item);
+  bindItemEvents(item);
+  selectItem(item);
+  saveState();
+  return item;
+}
+
+function bindItemEvents(item) {
+  if (item.dataset.bound === "true") return;
+  item.dataset.bound = "true";
+
+  const getXY = (e) => {
+    if (e.touches && e.touches.length > 0) {
+      return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+    return { x: e.clientX, y: e.clientY };
+  };
+
+  const editable = item.querySelector('[contenteditable="true"]');
+  if (editable) {
+    editable.oninput = () => saveState();
+  }
+
+  const startDrag = (e) => {
+    if (e.target.classList.contains('resize-handle') || e.target.classList.contains('rotate-handle')) return;
+
+    if (e.target.isContentEditable || e.target.closest('[contenteditable="true"]')) {
+      if (!e.target.classList.contains('move-handle')) {
+        selectItem(item);
+        return; 
+      }
+    }
+    
+    const pos = getXY(e);
+    let startX = pos.x;
+    let startY = pos.y;
+    let initialLeft = item.offsetLeft;
+    let initialTop = item.offsetTop;
+    let isDragging = false;
+
+    selectItem(item);
+
+    const move = (ev) => {
+      if (ev.touches && ev.touches.length > 1) return;
+      const mPos = getXY(ev);
+      let dx = (mPos.x - startX) / currentScale;
+      let dy = (mPos.y - startY) / currentScale;
+
+      if (!isDragging && (Math.abs(dx) > 3 || Math.abs(dy) > 3)) {
+        isDragging = true;
+        if (editable) editable.blur();
+      }
+
+      if (isDragging) {
+        if (ev.cancelable) ev.preventDefault();
+        item.style.left = (initialLeft + dx) + 'px';
+        item.style.top = (initialTop + dy) + 'px';
+      }
+    };
+
+    const up = () => {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+      document.removeEventListener('touchmove', move);
+      document.removeEventListener('touchend', up);
+      if (isDragging) saveState();
+    };
+
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+    document.addEventListener('touchmove', move, { passive: false });
+    document.addEventListener('touchend', up);
+  };
+
+  item.addEventListener('mousedown', startDrag);
+  item.addEventListener('touchstart', startDrag, { passive: true });
+
+  // リサイズハンドル
+  const rh = item.querySelector('.resize-handle');
+  if (rh) {
+    const startResize = (e) => {
+      e.stopPropagation();
+      const pos = getXY(e);
+      let startW = item.offsetWidth;
+      let startH = item.offsetHeight;
+      let startX = pos.x;
+      let startY = pos.y;
+
+      const resize = (ev) => {
+        if (ev.touches && ev.touches.length > 1) return;
+        const mPos = getXY(ev);
+        let w = startW + (mPos.x - startX) / currentScale;
+        let h = startH + (mPos.y - startY) / currentScale;
+        if (w > 10) item.style.width = w + 'px';
+        if (h > 10) item.style.height = h + 'px';
+        
+        if (item.classList.contains('icon-item')) {
+          let newFS = Math.min(w, h);
+          item.style.fontSize = newFS + 'px';
+          const iconContent = item.querySelector('.icon-content');
+          if (iconContent) iconContent.style.fontSize = newFS + 'px';
+          fs.value = Math.round(newFS);
+        }
+        
+        elemWidth.value = Math.round(item.offsetWidth);
+        elemHeight.value = Math.round(item.offsetHeight);
+      };
+
+      const up = () => {
+        document.removeEventListener('mousemove', resize);
+        document.removeEventListener('mouseup', up);
+        document.removeEventListener('touchmove', resize);
+        document.removeEventListener('touchend', up);
+        saveState();
+      };
+
+      document.addEventListener('mousemove', resize);
+      document.addEventListener('mouseup', up);
+      document.addEventListener('touchmove', resize, { passive: false });
+      document.addEventListener('touchend', up);
+    };
+
+    rh.addEventListener('mousedown', startResize);
+    rh.addEventListener('touchstart', startResize, { passive: false });
+  }
+
+  // 回転ハンドル
+  const rot = item.querySelector('.rotate-handle');
+  if (rot) {
+    const startRotate = (e) => {
+      e.stopPropagation();
+      let rect = item.getBoundingClientRect();
+      let cx = rect.left + rect.width / 2;
+      let cy = rect.top + rect.height / 2;
+
+      const rotate = (ev) => {
+        const mPos = getXY(ev);
+        let rad = Math.atan2(mPos.y - cy, mPos.x - cx);
+        let deg = rad * (180 / Math.PI);
+        item.style.transform = `rotate(${deg}deg)`;
+      };
+
+      const up = () => {
+        document.removeEventListener('mousemove', rotate);
+        document.removeEventListener('mouseup', up);
+        document.removeEventListener('touchmove', rotate);
+        document.removeEventListener('touchend', up);
+        saveState();
+      };
+
+      document.addEventListener('mousemove', rotate);
+      document.addEventListener('mouseup', up);
+      document.addEventListener('touchmove', rotate, { passive: false });
+      document.addEventListener('touchend', up);
+    };
+
+    rot.addEventListener('mousedown', startRotate);
+    rot.addEventListener('touchstart', startRotate, { passive: false });
+  }
+}
+
+// 2本指ピンチズーム対応（Chromebookタッチ用）
+let initialPinchDist = null;
+let initialScale = 1.0;
+
+workArea.addEventListener('touchstart', (e) => {
+  if (e.touches.length === 2) {
+    initialPinchDist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    initialScale = currentScale;
+  }
+}, { passive: true });
+
+workArea.addEventListener('touchmove', (e) => {
+  if (e.touches.length === 2 && initialPinchDist) {
+    if (e.cancelable) e.preventDefault();
+    const currentDist = Math.hypot(
+      e.touches[0].clientX - e.touches[1].clientX,
+      e.touches[0].clientY - e.touches[1].clientY
+    );
+    const zoomFactor = currentDist / initialPinchDist;
+    currentScale = Math.min(Math.max(0.3, initialScale * zoomFactor), 3.0);
+    zoomWrapper.style.transform = `scale(${currentScale})`;
+  }
+}, { passive: false });
+
+workArea.addEventListener('touchend', (e) => {
+  if (e.touches.length < 2) initialPinchDist = null;
+});
+
+function rebindItems() {
+  document.querySelectorAll('#canvas .item').forEach(item => bindItemEvents(item));
+}
+
+function selectItem(item) {
+  deselectAll();
+  selectedItem = item;
+  item.classList.add('selected');
+  elemWidth.value = Math.round(item.offsetWidth);
+  elemHeight.value = Math.round(item.offsetHeight);
+  
+  let currentFS = parseInt(window.getComputedStyle(item).fontSize);
+  if(currentFS) fs.value = currentFS;
+
+  let bStyle = item.style.borderStyle || 'none';
+  borderStyleSelect.value = bStyle;
+
+  let bWidth = parseInt(item.style.borderWidth) || 4;
+  borderWidthInput.value = bWidth;
+
+  let currentBg = item.style.backgroundColor;
+  isTransparentBg = (!currentBg || currentBg === 'transparent' || currentBg === 'rgba(0, 0, 0, 0)');
+  
+  let currentBorder = item.style.borderColor;
+  isTransparentBorder = (bStyle === 'none' || !currentBorder || currentBorder === 'transparent' || currentBorder === 'rgba(0, 0, 0, 0)');
+}
+
+function addTitle(left=10, top=70) { createItem('<div contenteditable="true" style="font-size:32px; font-weight:bold; text-align:center;">タイトル</div>', left, top, 770, 80, false, 'transparent', 'double', '6px', '#000000'); }
+function addText(left=10, top=170) { createItem('<div contenteditable="true" style="font-size:16px;">ここに文章を入力してください。</div>', left, top, 300, 80, false, 'transparent', 'none', '2px', '#000000'); }
+function addTextV(left=100, top=260) { createItem('<div contenteditable="true" class="vertical-text" style="font-size:16px;">ここに縦書きの文章を入力してください。</div>', left, top, 80, 300, false, 'transparent', 'none', '2px', '#000000'); }
+function addBox(left=100, top=260) { createItem('<div contenteditable="true" style="font-size:16px; width:100%; height:100%; display:flex; align-items:center; justify-content:center;">文字入力</div>', left, top, 150, 150, false, 'transparent', 'solid', '2px', '#000000'); }
+
+function addCircle(left=100, top=260) { 
+  let item = createItem('<div contenteditable="true" style="font-size:16px; width:100%; height:100%; display:flex; align-items:center; justify-content:center;">文字入力</div>', left, top, 150, 150, false, 'transparent', 'solid', '2px', '#000000');
+  item.style.borderRadius = '50%';
+}
+
+function addLine(left=100, top=260) { createItem('', left, top, 200, 4, false, '#000000', 'none', '0px', 'transparent'); }
+
+function addQR(left=100, top=260) {
+  let url = prompt('QRコードに変換するURLを入力してください:', '');
+  if (url === null) return;
+  url = url.trim();
+  if (!url) {
+    alert('URLを入力してください。');
+    return;
+  }
+  
+  let qrContainer = document.createElement('div');
+  qrContainer.style.width = '100%';
+  qrContainer.style.height = '100%';
+  
+  new QRCode(qrContainer, {
+    text: url,
+    width: 150,
+    height: 150,
+    colorDark: "#000000",
+    colorLight: "#ffffff",
+    correctLevel: QRCode.CorrectLevel.H
+  });
+  
+  setTimeout(() => {
+    let img = qrContainer.querySelector('img') || qrContainer.querySelector('canvas');
+    if (img) {
+      let src = img.tagName.toLowerCase() === 'canvas' ? img.toDataURL() : img.src;
+      createItem(`<img src="${src}">`, left, top, 150, 150, false, 'transparent', 'none', '0px', 'transparent');
+    }
+  }, 100);
+}
+
+function applySize() {
+  if (!selectedItem) return;
+  if (elemWidth.value) selectedItem.style.width = elemWidth.value + 'px';
+  if (elemHeight.value) selectedItem.style.height = elemHeight.value + 'px';
+  saveState();
+}
+
+function onBorderStyleChange() {
+  if (borderStyleSelect.value !== 'none') isTransparentBorder = false;
+  applyStyle();
+}
+
+function onBorderColorChange() {
+  isTransparentBorder = false;
+  if (borderStyleSelect.value === 'none') borderStyleSelect.value = 'solid';
+  applyStyle();
+}
+
+function onBgColorChange() {
+  isTransparentBg = false;
+  applyStyle();
+}
+
+/* スタイル適用（部分選択テキストハイライト & 全体適用 両対応） */
+function applyStyle() {
+  const sel = restoreSavedRange();
+  const selectedText = sel ? sel.toString() : '';
+
+  // 1. 部分テキストが選択されている場合
+  if (selectedText.length > 0 && sel.rangeCount > 0) {
+    const range = sel.getRangeAt(0);
+    const span = document.createElement('span');
+    span.style.fontSize = fs.value + 'px';
+    span.style.color = tc.value;
+    span.style.fontFamily = fontSelect.value;
+    
+    try {
+      range.surroundContents(span);
+    } catch (e) {
+      try {
+        const contents = range.extractContents();
+        span.appendChild(contents);
+        range.insertNode(span);
+      } catch (err) {}
+    }
+    saveState();
+    return;
+  }
+
+  // 2. 要素全体を選択している場合
+  if (!selectedItem) return;
+
+  if (selectedItem.classList.contains('icon-item')) {
+    selectedItem.style.fontSize = fs.value + 'px';
+    const iconContent = selectedItem.querySelector('.icon-content');
+    if (iconContent) iconContent.style.fontSize = fs.value + 'px';
+  } else {
+    selectedItem.style.fontSize = fs.value + 'px';
+  }
+
+  selectedItem.style.fontFamily = fontSelect.value;
+  selectedItem.style.color = tc.value;
+  
+  if (isTransparentBg) {
+    selectedItem.style.backgroundColor = 'transparent';
+  } else {
+    selectedItem.style.backgroundColor = bg.value;
+  }
+
+  if (isTransparentBorder) {
+    selectedItem.style.borderStyle = 'none';
+    selectedItem.style.borderColor = 'transparent';
+  } else {
+    selectedItem.style.borderStyle = borderStyleSelect.value;
+    selectedItem.style.borderWidth = borderWidthInput.value + 'px';
+    selectedItem.style.borderColor = bc.value;
+  }
+
+  saveState();
+}
+
+function toggleBold() {
+  const sel = restoreSavedRange();
+  if (sel && sel.toString().length > 0) {
+    document.execCommand('bold', false, null);
+  } else if (selectedItem) {
+    const editable = selectedItem.querySelector('[contenteditable="true"]') || selectedItem;
+    if (editable.style.fontWeight === 'bold') {
+      editable.style.fontWeight = 'normal';
+    } else {
+      editable.style.fontWeight = 'bold';
+    }
+  }
+  saveState();
+}
+
+function toggleDecoration(styleType) {
+  const sel = restoreSavedRange();
+  if (sel && sel.toString().length > 0 && sel.rangeCount > 0) {
+    const range = sel.getRangeAt(0);
+    const span = document.createElement('span');
+    if (styleType === 'underline') span.style.textDecoration = 'underline';
+    else if (styleType === 'double') {
+      span.style.textDecoration = 'underline double';
+    } else if (styleType === 'wavy') {
+      span.style.textDecoration = 'underline wavy';
+      span.style.textDecorationColor = tc.value || '#ef4444';
+    }
+    try {
+      range.surroundContents(span);
+    } catch(e) {
+      try {
+        const contents = range.extractContents();
+        span.appendChild(contents);
+        range.insertNode(span);
+      } catch(err) {}
+    }
+  } else if (selectedItem) {
+    const editable = selectedItem.querySelector('[contenteditable="true"]') || selectedItem;
+    if (styleType === 'underline') editable.style.textDecoration = 'underline';
+    else if (styleType === 'double') editable.style.textDecoration = 'underline double';
+    else if (styleType === 'wavy') {
+      editable.style.textDecoration = 'underline wavy';
+      editable.style.textDecorationColor = tc.value || '#ef4444';
+    }
+  }
+  saveState();
+}
+
+function alignT(align) {
+  if (!selectedItem) return;
+  const editable = selectedItem.querySelector('[contenteditable="true"]');
+  if (editable) editable.style.textAlign = align;
+  selectedItem.style.textAlign = align;
+  saveState();
+}
+
+function setBorderTransparent() {
+  isTransparentBorder = true;
+  borderStyleSelect.value = 'none';
+  if (selectedItem) {
+    selectedItem.style.borderStyle = 'none';
+    selectedItem.style.borderColor = 'transparent';
+  }
+  saveState();
+}
+
+function setBgTransparent() {
+  isTransparentBg = true;
+  if (selectedItem) {
+    selectedItem.style.backgroundColor = 'transparent';
+  }
+  saveState();
+}
+
+function front() {
+  if (!selectedItem) return;
+  c.appendChild(selectedItem);
+  saveState();
+}
+
+function back() {
+  if (!selectedItem) return;
+  const firstItem = c.querySelector('.item');
+  if (firstItem && firstItem !== selectedItem) {
+    c.insertBefore(selectedItem, firstItem);
+  }
+  saveState();
+}
+
+function copyE() {
+  if (!selectedItem) return;
+  copySelectedItem();
+  pasteInternalClipboard();
+}
+
+function delE() {
+  if (!selectedItem) return;
+  selectedItem.remove();
+  deselectAll();
+  saveState();
+}
+
+/* プログラム表示モーダル処理 */
+function showCodeModal() {
+  const codeArea = document.getElementById('codeViewArea');
+  
+  // キャンバスから選択枠等のUIを除去したコードを取得
+  let cleanCanvas = c.cloneNode(true);
+  cleanCanvas.querySelectorAll('.resize-handle, .move-handle, .rotate-handle').forEach(h => h.remove());
+  cleanCanvas.querySelectorAll('.item').forEach(it => it.classList.remove('selected'));
+  
+  const formattedHTML = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>提出用レポート</title>
+  <style>
+    body { margin: 0; background: #f1f5f9; display: flex; justify-content: center; padding: 20px; font-family: sans-serif; }
+    #canvas { position: relative; width: 794px; height: 1123px; background: #ffffff; box-shadow: 0 4px 12px rgba(0,0,0,0.15); overflow: hidden; }
+    .item { position: absolute; box-sizing: border-box; padding: 6px; }
+    .vertical-text { writing-mode: vertical-rl; text-orientation: upright; }
+    #fixedHeader { position: absolute; top: 20px; right: 25px; font-size: 20px; font-weight: bold; color: #000; }
+  </style>
+</head>
+<body>
+  <div id="canvas">
+${cleanCanvas.innerHTML.trim()}
+  </div>
+</body>
+</html>`;
+
+  codeArea.textContent = formattedHTML;
+  document.getElementById('codeModal').style.display = 'block';
+}
+
+function hideCodeModal() {
+  document.getElementById('codeModal').style.display = 'none';
+}
+
+function copyCodeToClipboard() {
+  const codeText = document.getElementById('codeViewArea').textContent;
+  const dummy = document.createElement('textarea');
+  document.body.appendChild(dummy);
+  dummy.value = codeText;
+  dummy.select();
+  document.execCommand('copy');
+  document.body.removeChild(dummy);
+  alert('プログラミングコード（HTML/CSS）をクリップボードにコピーしました！');
+}
+
+/* ファイル保存 / 読み込み */
+function saveToFile() {
+  const data = {
+    studentGrade: document.getElementById('studentGrade').value,
+    studentClassNum: document.getElementById('studentClassNum').value,
+    studentNumber: document.getElementById('studentNumber').value,
+    studentName: document.getElementById('studentName').value,
+    html: c.innerHTML
+  };
+  
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const filename = getExportFilename('プロジェクト', 'hpb');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function loadFromFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    try {
+      const data = JSON.parse(ev.target.result);
+      if (data.html) {
+        c.innerHTML = data.html;
+        if (data.studentGrade !== undefined) document.getElementById('studentGrade').value = data.studentGrade;
+        if (data.studentClassNum !== undefined) document.getElementById('studentClassNum').value = data.studentClassNum;
+        if (data.studentNumber !== undefined) document.getElementById('studentNumber').value = data.studentNumber;
+        if (data.studentName !== undefined) document.getElementById('studentName').value = data.studentName;
+        rebindItems();
+        updateFixedHeader();
+        saveState();
+        alert('ファイルを読み込みました。');
+      }
+    } catch (err) {
+      alert('ファイルの形式が正しくありません。');
+    }
+  };
+  reader.readAsText(file);
+}
+
+function downloadHTML() {
+  let cleanCanvas = c.cloneNode(true);
+  cleanCanvas.querySelectorAll('.resize-handle, .move-handle, .rotate-handle').forEach(h => h.remove());
+  cleanCanvas.querySelectorAll('.item').forEach(it => it.classList.remove('selected'));
+
+  const fullHTML = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>完成レポート</title>
+  <style>
+    body { margin: 0; background: #e2e8f0; display: flex; justify-content: center; padding: 20px; font-family: sans-serif; }
+    #canvas { position: relative; width: 794px; height: 1123px; background: #ffffff; box-shadow: 0 4px 12px rgba(0,0,0,0.15); overflow: hidden; }
+    .item { position: absolute; box-sizing: border-box; padding: 6px; }
+    .vertical-text { writing-mode: vertical-rl; text-orientation: upright; }
+    #fixedHeader { position: absolute; top: 20px; right: 25px; font-size: 20px; font-weight: bold; color: #000; }
+  </style>
+</head>
+<body>
+  <div id="canvas">
+${cleanCanvas.innerHTML.trim()}
+  </div>
+</body>
+</html>`;
+
+  const blob = new Blob([fullHTML], { type: 'text/html' });
+  const filename = getExportFilename('Webレポート', 'html');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function pdfOut() {
+  deselectAll();
+  window.print();
+}
+
+/* 初期化設定 */
+window.onload = function() {
+  const loaded = loadFromLocalStorage();
+  if (!loaded) {
+    // 初回アクセス時はデフォルトで見本データをキャンバスにロード
+    c.innerHTML = '<div id="fixedHeader"></div>' + SAMPLE_HTML_DATA;
+    rebindItems();
+    updateFixedHeader();
+  }
+  saveState();
+  checkStudentInfoInputs();
+};
+</script>
+</body>
+</html>
